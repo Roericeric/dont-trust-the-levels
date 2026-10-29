@@ -15,10 +15,12 @@ real and configured; the behaviour below is the **hand work** left in the
 editor. The same boundary is documented in `ProjectileShooting.md` §“Limits”
 and `Structure.md` §11.
 
-**Team execution (24 Oct 2026):** `Docs/EnemyWorkPlan.md` assigns this work to
-three owners, defines the M1 base gate, the asset locks and the per-enemy
-acceptance tests. Walkers still cannot start before the `BP_EnemyBase` AI gate;
-stationary/flyers and the projectile/puddle/shooter support may run in parallel.
+**Team execution (24 Oct 2026; A split 27 Oct 2026):**
+`Docs/EnemyWorkPlan.md` assigns this work to four slots (A1/A2/B/C), defines the
+M1 base gate, the asset locks and the per-enemy acceptance tests. Walkers still
+cannot start their graphs or PIE before the `BP_EnemyBase` AI gate; A1/A2 may
+prepare walker defaults and A2 may stage static map placement, while
+stationary/flyers and the projectile/puddle/shooter support run in parallel.
 The work plan does not override the technical rules below.
 
 > **⚠ 21 Oct 2026 AI revision.** Movement, patrol, detection, platform
@@ -1141,9 +1143,12 @@ damage is enabled only after the trigger, so a hanging bat is safe to touch.
 
 ### 7.1 Build order (do not skip ahead)
 
-> **Parallel split (24 Oct 2026):** `Docs/EnemyWorkPlan.md` assigns this order to
-> three owners. The "do not skip ahead" rule still applies to **walkers**: they
-> wait for the M1 `BP_EnemyBase` gate. Stationary/flyer children
+> **Parallel split (24 Oct 2026; A split 27 Oct 2026):**
+> `Docs/EnemyWorkPlan.md` assigns this order to four slots (A1/A2/B/C). The
+> "do not skip ahead" rule still applies to **walkers**: they wait for the M1
+> `BP_EnemyBase` gate; A1/A2 may prep walker defaults and A2 may stage static
+> placement first.
+> Stationary/flyer children
 > (`SpikeTurtle`, `Ghost`, `Bat`, `FloatingSkull`) and the projectile/puddle/
 > shooter support may be built in parallel because they do not read the walker
 > AI.
@@ -1360,7 +1365,7 @@ non-Pawn responses are `Ignore`: **44 PASS / 0 FAIL / 0 PENDING**.
 | `Docs/Enemies.md` | this build sheet |
 | `Docs/EnemyAI.md` | 21 Oct movement/detection/platform/stairs revision |
 | `Docs/EnemyPlacement.md` | shared level-placement guide for all enemy types |
-| `Docs/EnemyWorkPlan.md` | three-owner execution split, gates and work cards |
+| `Docs/EnemyWorkPlan.md` | four-slot execution split, gates and work cards |
 | `Docs/Structure.md` | enemy tree/ownership now points here |
 | `README.md` | enemy status + guide link |
 | `Scripts/_make_enemies.py` | local-only generator (gitignored) |

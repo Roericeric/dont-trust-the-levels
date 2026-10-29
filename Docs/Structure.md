@@ -241,7 +241,8 @@ See `Docs/Paper2DArt.md` for the generated asset map, exclusions, and rebuild
 commands (`Scripts/make_paper2d_assets.py`). See `Docs/Enemies.md` for the
 enemy shells, the `BP_EnemyBase` contract, and the hand-built behaviour sheets;
 `Docs/EnemyAI.md` for the AI rules; `Docs/EnemyPlacement.md` for level
-placement; and `Docs/EnemyWorkPlan.md` for the three-owner execution split.
+placement; and `Docs/EnemyWorkPlan.md` for the four-slot execution split
+(A1/A2/B/C).
 
 ---
 

@@ -8,8 +8,8 @@ the target layout. Do not place enemies on the assumption that the old
 unlimited-range or follow-off-ledge behavior still exists.
 
 **Team execution:** the owner split and the M4 placement gate are in
-**`Docs/EnemyWorkPlan.md`**. Only Owner A saves `L_Level_01`; B/C provide
-coordinates and test results.
+**`Docs/EnemyWorkPlan.md`**. Only Owner A2 saves `L_Level_01`; A1/B/C provide
+coordinates and test results and must not save the map.
 
 ---
 

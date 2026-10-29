@@ -30,7 +30,7 @@ Feature guides: **[`Docs/FakeFloorTrap.md`](Docs/FakeFloorTrap.md)** (paintable
 collapsing floor), **[`Docs/Enemies.md`](Docs/Enemies.md)** (enemy base class
 and the nine mechanics), and **[`Docs/EnemyAI.md`](Docs/EnemyAI.md)** +
 **[`Docs/EnemyPlacement.md`](Docs/EnemyPlacement.md)** (AI rules and level
-placement). The three-owner execution plan for the remaining enemy work is
+placement). The four-slot execution plan for the remaining enemy work is
 **[`Docs/EnemyWorkPlan.md`](Docs/EnemyWorkPlan.md)**. Camera dead-zone: see the
 blueprint diagrams in
 `Saved/Screenshots/Windows/DeadZoneCamera_Diagrams.html` (local only).
