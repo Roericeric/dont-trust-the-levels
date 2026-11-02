@@ -59,7 +59,8 @@ Four booleans, evaluated in this order:
 | 4 | Patrol | default | walk between platform bounds |
 
 `bWasKnockedBack` is a short-lived flag set by `AnyDamage` and cleared by
-`Landed`; it is not a fifth state, but it suppresses movement until landing.
+`ResolveKnockback` (called from `Event On Landed` or the Tick fallback); it is
+not a fifth state, but it suppresses movement until landing is resolved.
 
 Do **not** use one integer state enum. The base already has booleans, and child
 blueprints need to override only one behaviour at a time (Snail shell, Rhino
@@ -107,7 +108,7 @@ per-enemy minimum widths are tabulated in `Docs/EnemyPlacement.md`.
 
 ### 3.2 How an enemy finds its home
 
-`FindHomePlatform` (called by `BeginPlay` and `Landed`):
+`FindHomePlatform` (called by `BeginPlay` and `Event On Landed`):
 
 ```text
 SelfFeet = Self.Location - (0,0,CapsuleHalfHeight)
@@ -124,7 +125,7 @@ Branch: Candidate valid
            Set bStranded = false
   False -> Set HomePlatform = None
            # no zone is not an error: edge-probe patrol still works.
-           # Trace down to set GroundZ; if there is no floor, wait for Landed.
+           # Trace down to set GroundZ; if there is no floor, wait for Event On Landed.
            # Only a landing on a too-narrow surface makes the enemy stranded.
 ```
 
@@ -204,7 +205,7 @@ Add these in **My Blueprint → Variables**. Existing variables are in
 | `ChaseSpeed` | Float | `150.0` | walker aggro speed; `0` = never chase |
 | `bAggro` | Boolean | `false` | runtime |
 | `bStranded` | Boolean | `false` | landed off a valid platform |
-| `bWasKnockedBack` | Boolean | `false` | suppresses AI until `Landed` |
+| `bWasKnockedBack` | Boolean | `false` | suppresses AI until `ResolveKnockback` clears it |
 | `AggroHalfWidth` | Float | `600.0` | rectangle half-width; walkers |
 | `AggroHalfHeight` | Float | `500.0` | rectangle half-height; covers jump/double-jump |
 | `AggroRadius` | Float | `0.0` | sphere radius; flyers (`0` = disabled) |
@@ -231,10 +232,10 @@ functions set `MaxWalkSpeed = MoveSpeed` or `ChaseSpeed`.
 
 ### 4.1 What is not a member variable
 
-`EffectiveInset`, `Candidate`, `SelfFeet`, `PlayerFeet`, `BoxExtent` and the
-trace hit/start/end values are **function-locals**. Compute them inside
-`FindHomePlatform`, `LedgeAhead` or `TryRescue`; do not add them as Blueprint
-variables.
+`EffectiveInset`, `BestDistance`, `Candidate`, `SelfFeet`, `PlayerFeet`,
+`BoxExtent` and the trace hit/start/end values are **function-locals**. Compute
+them inside `FindHomePlatform`, `LedgeAhead` or `TryRescue`; do not add them as
+Blueprint variables.
 
 `IsPlayerOnHomePlatform` uses four locals for the same reason: `PlayerRef`
 (Character), `PlayerLocation` (Vector), `HalfHeight` (Float), `TargetZ`
@@ -470,18 +471,23 @@ LaunchCharacter(...)
 
 Do not clear `bWasKnockedBack` with a single fixed timer. A character can be in
 the air for a variable time, and a purely horizontal hit may **not leave the
-floor at all** — in that case `Event Landed` never fires and the enemy would
+floor at all** — in that case `Event On Landed` never fires and the enemy would
 stay frozen. Resolve it in two places:
 
-- `Event Landed` -> `ResolveKnockback`;
+- `Event On Landed` -> `ResolveKnockback`;
 - `Event Tick`: if `bWasKnockedBack` and `CharacterMovement.IsFalling()` is
   false, call `ResolveKnockback` immediately (the hit stayed on the floor).
+
+In the UE graph the landing node is **`Event On Landed`** (the `OnLanded`
+BlueprintImplementableEvent inherited from `ACharacter`), not `Event Landed`.
+It exposes the `Hit` result and has **no Return Node**: an event graph ends at an
+unconnected exec pin. Return Nodes belong only in function graphs.
 
 `ResolveKnockback` is the body in §7.2 (clear flag, find/adopt platform).
 
 ### 7.2 Landing
 
-`ResolveKnockback` (called by `Event Landed` **and** by the Tick fallback in
+`ResolveKnockback` (called by `Event On Landed` **and** by the Tick fallback in
 §7.1):
 
 ```text
@@ -525,14 +531,15 @@ Get All Actors of Class (BP_EnemyPlatform)
 ForEach:
   Branch: Platform.bEnabled
   Branch: 2D distance(Self, Platform) <= RescueRadius
-  Branch: Platform.Z < Self.Z + 50            # below or level, not above
+  Branch: Delta.Z < 50           # Delta = Platform.Location - Self.Location
+                                 # same as Platform.Z < Self.Z + 50
   Keep nearest valid Candidate
 Branch: Candidate valid
   True  -> SetActorLocation(Candidate.Location + (0,0,120),
                             bSweep=false, bTeleport=true)
            Set Movement Mode (Falling)
            # gravity drops it onto a guaranteed broad platform
-           # Event Landed runs FindHomePlatform again and adopts it
+           # Event On Landed runs FindHomePlatform again and adopts it
   False -> stay stranded (idle); no suicide drop
 ```
 
@@ -540,6 +547,10 @@ The teleport/drop is deliberate: the destination is an authored zone, so it
 cannot be a hole or a 100 uu step. A short `Set Actor Hidden In Game` or a dust
 puff can hide the reposition later. Do not trace blindly downward and walk off;
 that is how enemies kill themselves.
+
+`Delta` is the vector difference between the platform location and Self location.
+Break it once; `Delta.Z < 50` is the same height test as
+`Platform.Z < Self.Z + 50` and reuses the X/Z values used for the distance.
 
 **This is deliberately one-way: rescue never teleports upward.** A normal hit
 uses horizontal knockback (`LaunchCharacter(X, 0, 0, bZOverride=false)`), so a
@@ -613,7 +624,7 @@ authoring contract.
 - `MoveSpeed`/`ChaseSpeed` per tier; keep the existing `100 / 140 / 180`
   identities and use `120 / 160 / 200` for chase as a starting point. Tune
   separately after PIE.
-- Split pieces are spawned with `LaunchCharacter`; each piece runs `Landed` and
+- Split pieces are spawned with `LaunchCharacter`; each piece runs `Event On Landed` and
   adopts the platform it lands on (or becomes stranded/rescued). Do not assume
   the parent's `HomePlatform` is still valid.
 
@@ -826,10 +837,10 @@ parallel because they do not read the walker AI. See
    4. **NEXT AFTER 3** — the rescue variables already exist; build
       `ResolveKnockback`, `MeasurePlatformWidth`, `TryRescue` (landing,
       stranded, stairs).
-   5. Wire `BeginPlay` → `FindHomePlatform`, `Landed` → `ResolveKnockback`,
-      `Tick` → the state loop, and set `bWasKnockedBack` in `AnyDamage`
-      before `LaunchCharacter`. `InitEnemy` already calls `FindHomePlatform`;
-      do not add a second BeginPlay call.
+   5. Wire `BeginPlay` → `FindHomePlatform`, `Event On Landed` →
+      `ResolveKnockback`, `Tick` → the state loop, and set `bWasKnockedBack` in
+      `AnyDamage` before `LaunchCharacter`. `InitEnemy` already calls
+      `FindHomePlatform`; do not add a second BeginPlay call.
 3. **`BP_EnemyProjectile` → `BP_ToxicPuddle` → `BP_ShooterEnemyBase`** — the
    pending work from `Enemies.md` §7.1; projectile/puddle kill is independent of
    the AI rework.
