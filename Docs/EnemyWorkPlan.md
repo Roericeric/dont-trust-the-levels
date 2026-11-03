@@ -118,7 +118,7 @@ If two documents disagree, **stop and post the conflict** in the status log.
    - Stationary/flyers (`SpikeTurtle`, `Ghost`, `Bat`, `FloatingSkull`) set
      `bCanMove=false`; their own `Event Tick` / `LaunchCharacter` is the only
      movement. `ChaseSpeed=0` for Turtle/Ghost/Skull; Bat keeps the inherited
-     `ChaseSpeed=300` for `MaxFlySpeed`. This is what stops the shared walker
+     `ChaseSpeed=1000` for `MaxFlySpeed`. This is what stops the shared walker
      loop from also running.
    - `bCanMove` is a shared-AI gate, not a CharacterMovement property. Setting
      it false does not stop `Add Movement Input` or `LaunchCharacter`.
@@ -383,7 +383,7 @@ Order: `BP_SpikeTurtle` (warm-up) → `BP_Ghost` (highest risk) → `BP_Bat` →
 - None of these use `PatrolStep`, `LedgeAhead`, `IsPlayerOnHomePlatform` or the
   walker aggro loop.
 - Set `bCanMove=false` on all four. `ChaseSpeed=0` for Turtle/Ghost/Skull;
-  Bat keeps `ChaseSpeed=300` for `MaxFlySpeed`. Turtle and Skull have no child
+  Bat keeps `ChaseSpeed=1000` for `MaxFlySpeed`. Turtle and Skull have no child
   movement Tick; Ghost and Bat use their own Tick.
 - Compile + save after each graph; PIE each asset before moving to the next.
 
@@ -559,14 +559,14 @@ de-aggro branch.
 - [ ] Add only the unique variables: `bTriggered`, `bChasing`,
       `TriggerRadius`, `CeilingInFlipbook`, `CeilingOutFlipbook`,
       `FlyingFlipbook`, `HangingFlipbook`. **Do not** declare `ChaseSpeed`;
-      inherit it and set it to `300` in Class Defaults.
-- [ ] Class Defaults: `bCanMove=false`, `ChaseSpeed=300`, `TriggerRadius=300`,
+      inherit it and set it to `1000` in Class Defaults.
+- [ ] Class Defaults: `bCanMove=false`, `ChaseSpeed=1000`, `TriggerRadius=1000`,
       `MaxHealth=2`, `ContactDamage=1`, bat flipbooks.
 - [ ] `BeginPlay`: `InitEnemy`; `bDealContactDamage=false`; play
       `CeilingInFlipbook`; start `HangIdle` (`0.6`).
 - [ ] `HangIdle` → loop `HangingFlipbook`.
 - [ ] Own `Event Tick`: trigger only when the player is valid and within the
-      `300` sphere; set `bTriggered=true`, contact on, play `CeilingOutFlipbook`,
+      `1000` sphere; set `bTriggered=true`, contact on, play `CeilingOutFlipbook`,
       start `StartChase` (`0.5`).
 - [ ] `StartChase` → `bChasing=true`; `MaxFlySpeed=ChaseSpeed`; loop
       `FlyingFlipbook`.
@@ -867,7 +867,7 @@ Hard rules:
   with Python. Build nodes, wires, variables and functions manually in the editor.
 - One movement authority per asset. Walkers use the base Event Tick; stationary/
   flyers set bCanMove=false and use their own Tick/Launch. ChaseSpeed=0 for
-  Turtle/Ghost/Skull; Bat keeps ChaseSpeed=300 for MaxFlySpeed.
+  Turtle/Ghost/Skull; Bat keeps ChaseSpeed=1000 for MaxFlySpeed.
 - Do not add a variable that already exists in a parent. Use inherited
   bAggro, AggroRadius, ChaseSpeed, MoveSpeed, KnockbackForce, Facing and the
   base health/contact/flipbook variables. Do not add MaxWalkSpeed.
@@ -959,6 +959,7 @@ sorted by date. Use `PASS`, `FAIL`, `BLOCKED` or `DONE` explicitly.
 | 27 Oct 2026 | A1/A2 | Owner A split | DONE | — | — | A1: `BP_EnemyBase`, `BP_EnemyPlatform`, `BP_Snail`, contract docs; A2: Rocks, `L_Level_01`; §4.2 boundary; walker graphs/PIE wait for M1 |
 | 27 Oct 2026 | B | BP_Bat | DONE | n/a | test 14 PASS: hang (CeilingIn -> Hanging loop, no drift), 600-sphere trigger, contact ON during 0.5 s wind-up, direct chase colliding with walls/floors (no WorldStatic=Ignore), 2 hits kill, no de-aggro | DEVIATION: TriggerRadius=600 (card says 300) - deliberate playtest tuning, needs A1's blessing + doc sync; Ghost/Turtle editor resaves ride along (Ghost = byte-noise from f8e6cef adoption; Turtle = capsule Pawn=Block + ToggleIdle removed, both pending A1 ruling) |
 | 4 Nov 2026 | A/B | BP_Bat hit retune | DONE | live CDO `KnockbackForce=0`, `TriggerRadius=800`; `RefreshStateFlipbook` 8 nodes | hit no longer slides the Bat along the ceiling or pushes it out of its trigger; it can now enter `CeilingOut` and chase | `BP_Bat.uasset`; docs synced to 800 |
+| 4 Nov 2026 | A/B | BP_Bat chase follow-up | DONE | live CDO `KnockbackForce=0`, `TriggerRadius=1000`, `MaxAcceleration=8192`; `ChaseSpeed=1000` | widened the distance trigger so the approach from the playable floor is covered, and made acceleration immediate after the zero-vector hit; damage still does not set `bTriggered`, so a shot from outside `1000` remains idle | `BP_Bat.uasset`; docs synced to 1000/8192 |
 |  |  |  |  |  |  |  |
 
 **Defect report (B → A1, 25 Oct 2026) — `BP_EnemyBase` contact chain cannot fire.**

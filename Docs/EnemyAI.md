@@ -442,7 +442,7 @@ branch.
 | Rhino | rectangle | `1200` | `500` | `2.0 s` | yes (charge) |
 | Wood Log | rectangle | `1400` | `500` | `2.0 s` | no — stops to shoot |
 | Ghost | sphere | `550` | — | **never** | yes, through walls |
-| Bat | sphere | `800` | — | **never** | yes, collides |
+| Bat | sphere | `1000` | — | **never** | yes, collides |
 | Snail | none | — | — | — | no |
 | Toxic Slime | none | — | — | — | no |
 | Spike Turtle | none | — | — | — | no |
@@ -604,7 +604,7 @@ authoring contract.
 | `BP_ToxicSlime` | patrol | none | `1` | `3` | puddle timer unchanged |
 | `BP_Rhino` | patrol + charge | rectangle `1200×500`, de-aggro `2 s` | `1` | **4 wall health**; bullets no-op | each wall hit `-1` and turn |
 | `BP_FloatingSkull` | bounce | none | `1` only when ON | `2` | `BounceSpeed ≈ 300`; ON/OFF toggle stays |
-| `BP_Bat` | hang, then fly | sphere `800`, no de-aggro | `1` only after trigger | `2` | collides with wall/floor |
+| `BP_Bat` | hang, then fly | sphere `1000`, no de-aggro | `1` only after trigger | `2` | collides with wall/floor |
 | `BP_WoodLog` | patrol; stops to shoot | rectangle `1400×500`, de-aggro `2 s` | `1` | `3` | horizontal shots only |
 | `BP_PeaPlant` | unused | — | — | — | keep out of build order |
 
@@ -709,16 +709,21 @@ Branch: CurrentHealth <= 0
 
 ### 8.8 Bat
 
-- Set `bCanMove=false`; use the inherited `ChaseSpeed=300`. The Bat's own Tick
+- Set `bCanMove=false`; use the inherited `ChaseSpeed=1000`. The Bat's own Tick
   is the only movement authority.
-- Trigger sphere is `800` (was `300`; `600` was the first playtest value). The
-  wider sphere makes a hit from the playable floor start the chase reliably.
+- Trigger sphere is `1000` (was `800`; `600` was the first playtest value). The
+  wider sphere covers the approach from the playable floor; it still only
+  starts the chase when the player is inside it.
 - `KnockbackForce=0` for the Bat. `LaunchCharacter` then receives a zero vector
   and leaves the flying character in `MOVE_Flying`, so a hit cannot slide it
   along the ceiling or push it out of the trigger.
 - A non-lethal hit does **not** force aggro by itself: the base damage path
   clears aggro while knocked back. The Bat's own Tick must see the player
   inside `TriggerRadius`; zero knockback keeps it there long enough to trigger.
+  A hit from outside `1000` still leaves it hanging.
+- `CharacterMovement.MaxAcceleration=8192` so that after a hit or the
+  `StartChase` transition it reaches `MaxFlySpeed` immediately instead of
+  drifting slowly.
 - After the `CeilingOut` animation, `bChasing=true` and it chases directly in
   the X/Z plane. Unlike Ghost, it **collides with walls and floors**: do not set
   `WorldStatic = Ignore`. If it hits a wall, it stops/slides; there is no

@@ -575,7 +575,7 @@ Walkers (`Rocks`, `Snail`, `Slime`, `Rhino`, `WoodLog`) use the base
 `Event Tick` → `PatrolStep` / `ChaseStep` and never add a second movement Tick.
 Stationary/flyers (`SpikeTurtle`, `Ghost`, `Bat`, `FloatingSkull`) set
 `bCanMove=false`; their own Tick / `LaunchCharacter` is the only movement.
-`ChaseSpeed=0` for Turtle/Ghost/Skull; Bat inherits `ChaseSpeed=300` because
+`ChaseSpeed=0` for Turtle/Ghost/Skull; Bat inherits `ChaseSpeed=1000` because
 that value is also its `MaxFlySpeed`. `ChaseSpeed=0` also means "no detection"
 for Snail and Slime. See `EnemyAI.md` §4.3.
 
@@ -1073,8 +1073,8 @@ component is hand-added; Python cannot add SCS components.
 
 ### 6.8 Bat — `BP_Bat`
 
-**Goal (21 Oct 2026 revision):** hangs until the player enters a **smaller
-sphere** (300), then chases directly like the Ghost but **collides with walls
+**Goal (21 Oct 2026 revision):** hangs until the player enters its **trigger
+sphere** (1000), then chases directly like the Ghost but **collides with walls
 and floors**. No de-aggro once triggered.
 
 **Extra variables**
@@ -1083,17 +1083,19 @@ and floors**. No de-aggro once triggered.
 |---|---|---|
 | `bTriggered` | Boolean | `false` |
 | `bChasing` | Boolean | `false` |
-| `TriggerRadius` | Float | `800.0` |
+| `TriggerRadius` | Float | `1000.0` |
 | `CeilingInFlipbook` | Paper Flipbook | `FLB_Bat_CeilingIn` |
 | `CeilingOutFlipbook` | Paper Flipbook | `FLB_Bat_CeilingOut` |
 | `FlyingFlipbook` | Paper Flipbook | `FLB_Bat_Flying` |
 | `HangingFlipbook` | Paper Flipbook | `FLB_Bat_Idle` |
 
-**Defaults:** `bCanMove=false`, `ChaseSpeed=300`, `TriggerRadius=800`,
+**Defaults:** `bCanMove=false`, `ChaseSpeed=1000`, `TriggerRadius=1000`,
 `KnockbackForce=0`, `MaxHealth=2`, `ContactDamage=1`, `HitFlipbook=FLB_Bat_Hit`,
 `DeathFlipbook=FLB_Bat_Hit`. The zero knockback keeps a hit from launching the
-flying Bat along the ceiling; it stays in its trigger and starts the chase.
-`ChaseSpeed` is inherited from `BP_EnemyBase`; do not add it again.
+flying Bat along the ceiling. Aggro is still driven by the Tick distance check:
+a hit by itself does **not** set `bTriggered`; the player must be inside
+`TriggerRadius` when the Bat ticks. `ChaseSpeed` is inherited from
+`BP_EnemyBase`; do not add it again.
 
 **BeginPlay:** `InitEnemy`; `Set bDealContactDamage=false`;
 `PlayStateFlipbook(CeilingInFlipbook,false)`;
@@ -1131,7 +1133,9 @@ Add Movement Input(Direction, 1)
 ```
 
 The shell is already `MOVE_Flying`, gravity 0, `MaxFlySpeed=400`; `StartChase`
-lowers it to `ChaseSpeed` (300) so the bat is dodgeable. `FLB_Bat_Flying` loops.
+sets it to `ChaseSpeed` (1000). `CharacterMovement.MaxAcceleration=8192` makes
+the Bat reach that speed immediately instead of drifting slowly after a hit.
+`FLB_Bat_Flying` loops.
 
 `RefreshStateFlipbook` override: `FlyingFlipbook` while `bChasing`, otherwise
 `HangingFlipbook`.
@@ -1273,8 +1277,8 @@ non-Pawn responses are `Ignore`: **44 PASS / 0 FAIL / 0 PENDING**.
 | Floating Skull | Shoot while ON | no damage |
 | Floating Skull | Let it hit wall/floor | toggles OFF; `HitWall01/02`; bounces slower (~300) |
 | Floating Skull | Touch while OFF | no damage; shoot it to kill |
-| Bat | Stand outside 800 sphere | hangs in `CeilingIn`/`Idle`; safe |
-| Bat | Enter 800 sphere | `CeilingOut` → `Flying` → direct chase with collision; contact kills; no de-aggro |
+| Bat | Stand outside 1000 sphere | hangs in `CeilingIn`/`Idle`; safe |
+| Bat | Enter 1000 sphere | `CeilingOut` → `Flying` → direct chase with collision; contact kills; no de-aggro |
 | Bat | Shoot twice | 2 hits kills; `FLB_Bat_Hit` |
 | Enemy projectile | Fire near a wall | destroys on wall, no self-hit, 5 s lifespan |
 | Toxic puddle | Spawn and wait | destroyed at 3 s via `InitialLifeSpan` |
