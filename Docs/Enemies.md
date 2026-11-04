@@ -166,7 +166,7 @@ an active spike can be walked through without a special enemy state.
 > **Contact damage (fixed 25 Oct 2026).** `BP_EnemyBase` has a `ContactBox`
 > (`Pawn=Overlap`, all else `Ignore`) bound to the contact chain, and
 > `CollisionCylinder` is now `Pawn = Overlap`, so the player cannot stand on the
-> enemy and the box catches the fall. Verified **44 PASS / 0 FAIL** for the
+> enemy and the box catches the fall. Verified **45 PASS / 0 FAIL** for the
 > contact chain and **4 PASS / 0 FAIL** for the four enemy classes. See
 > `EnemyAI.md` §9.
 
@@ -293,6 +293,11 @@ Event AnyDamage (Damage, DamageType, InstigatedBy, DamageCauser)
           True  → Die
           False → optional LaunchCharacter knockback
 ```
+
+`LastDamageTime` has two readers: the i-frame bookkeeping here and, when
+`bAggroOnHit` is true, the base `UpdateAggro` hit window (`EnemyAI.md` §6.2).
+The stamp only happens after the gate above, so a hit swallowed by i-frames
+does not wake a sleeping walker.
 
 Knockback (optional, but it sells the hit):
 
@@ -538,6 +543,11 @@ same-platform check. It stops to shoot, fires only horizontally
 (`Direction=(Facing,0,0)`, fixed muzzle Z), and resumes patrol when the player
 leaves or becomes unreachable. `TryFire` is gated by `bAggro`. See
 `EnemyAI.md` §6 and §8.9. A jumping player can dodge the shot by design.
+`bAggroOnHit=true` (A2 flips the CDO) matters here: the log **stops and shoots**
+rather than chases (`ChaseStep` override in §8.9), so a hit from outside the
+rectangle turns it on the player without moving it. The flag needs
+`ChaseSpeed > 0`, because the base `UpdateAggro` returns to `PatrolStep` before
+the box test when `ChaseSpeed <= 0`.
 
 `BP_PeaPlant`: no patrol; `bCanMove=false`; `RefreshStateFlipbook` always
 `FLB_Plant_Idle`. It is unused in the current build.
@@ -671,6 +681,7 @@ component broadcasting a finish delegate.
 | `RockTier` | `1` | `2` | `3` |
 | `ChildRockClass` | `BP_Rock2` | `BP_Rock3` | `None` |
 | `bCanSplit` | `true` | `true` | `false` |
+| `bAggroOnHit` | `true` | `true` | `true` |
 | `IdleFlipbook` | `FLB_Rock1_Idle` | `FLB_Rock2_Idle` | `FLB_Rock3_Idle` |
 | `HitFlipbook` | `FLB_Rock1_Hit` | `FLB_Rock2_Hit` | `FLB_Rock3_Hit` |
 | `DeathFlipbook` | `FLB_Rock1_Hit` | `FLB_Rock2_Hit` | `FLB_Rock3_Hit` |
@@ -684,6 +695,11 @@ patrol when the player leaves or becomes unreachable. Each tier keeps its own
 `MoveSpeed`/`ChaseSpeed`. `RefreshStateFlipbook` chooses `FLB_RockN_Run` when
 `Abs(GetVelocity.X) > 10`, else `FLB_RockN_Idle`. Split pieces run the same
 `Landed`/platform adoption as the parent.
+
+`bAggroOnHit=true` on all three tiers (A2 flips the CDOs): a rock that is shot
+chases for `DeAggroTime` even when the player is outside the rectangle, so a
+tier-1 hit does not immediately lose the player. It costs one checkbox per
+asset and adds no nodes — the base graph reads the flag.
 
 **`Die` override**
 
@@ -734,13 +750,24 @@ cannot be killed.
 | `ShellTopHitFlipbook` | Paper Flipbook | `FLB_Snail_ShellTopHit` |
 | `WithoutShellFlipbook` | Paper Flipbook | `FLB_Snail_WithoutShell` |
 
-**Defaults:** `ChaseSpeed=0`, `MaxHealth=2`, `MoveSpeed=50`, `ContactDamage=1`,
+**Defaults:** `ChaseSpeed=80`, `AggroHalfWidth=0`, `AggroHalfHeight=0`,
+`bAggroOnHit=true`, `MaxHealth=2`, `MoveSpeed=50`, `ContactDamage=1`,
 `IdleFlipbook=FLB_Snail_Idle`, `HitFlipbook=FLB_Snail_Hit`,
-`DeathFlipbook=FLB_Snail_Hit`.
+`DeathFlipbook=FLB_Snail_Hit`. The zero box is the point: the snail never
+detects on its own, and `bAggroOnHit` gives it the `DeAggroTime` hit window
+(`EnemyAI.md` §6.2) so a player who shoots it once has to deal with it. Leaving
+`ChaseSpeed=0` would make it deaf to hits as well.
+
+**Status (5 Nov 2026):** the four aggro overrides are live on `BP_Snail`
+(`ChaseSpeed=80`, both aggro halves `0`, `bAggroOnHit=true`). The remaining
+defaults above (`MaxHealth=2`, `MoveSpeed=50`, the snail flipbooks) are still
+inherited base values and remain A1b work; the PIE test can run on the aggro
+flip alone.
 
 **Normal state (21 Oct 2026 revision):** patrol left/right with
 `Add Movement Input` and the platform/ledge guard (`EnemyAI.md` §5). No
-detection and no chase. `Event Hit` on a wall reverses `Facing`;
+detection box and no chase of its own; a hit opens the `DeAggroTime` window.
+`Event Hit` on a wall reverses `Facing`;
 `RefreshStateFlipbook` uses `FLB_Snail_Walk` when moving, otherwise
 `FLB_Snail_Idle`. The shell also uses the ledge guard: it sweeps its platform
 and never walks off an edge.
@@ -1172,7 +1199,7 @@ damage is enabled only after the trigger, so a hanging bat is safe to touch.
     generate overlaps), its `On Component Begin Overlap` is bound to the
     contact chain, and `CollisionCylinder` is now `Pawn=Overlap` on all four
     classes so the player cannot stand on the enemy. The verifiers report
-    **44 PASS / 0 FAIL** and **4 PASS / 0 FAIL**. See `EnemyAI.md` §9.
+    **45 PASS / 0 FAIL** and **4 PASS / 0 FAIL**. See `EnemyAI.md` §9.
 0b. **DONE — `BP_EnemyPlatform`** — box marker (no collision, hidden in game);
     seven auto zones exist in `L_Level_01`. The boolean is `bEnabled=true`; the
     old `bEnable` name is gone (live check 24 Oct 2026: `Zone` extent
@@ -1188,7 +1215,7 @@ damage is enabled only after the trigger, so a hanging bat is safe to touch.
    `py -3 Scripts\_verify_enemy_base.py` checks this whole block from a fresh
    T3D + live CDO + a transient spawned instance. It now also verifies the
    compiled `ContactBox` and its `On Component Begin Overlap` chain. Expected
-   once the box's non-Pawn responses are `Ignore`: **44 PASS / 0 FAIL / 0
+   once the box's non-Pawn responses are `Ignore`: **45 PASS / 0 FAIL / 0
    PENDING**.
 2. **`BP_EnemyProjectile`** — add `SphereCollision` + `ProjectileMovement`;
    add `InitProjectile`, `BeginPlay`, `On Component Hit`. Compile + save the
@@ -1236,7 +1263,7 @@ instance for SCS components, and checks every §3.2 variable (type/default),
 §3.3 function signature, `Kill` event binding, the §4 event/helper graphs, and
 the `ContactBox` collision setup. `PENDING` means not built yet; `FAIL` means
 present but mis-wired. Expected baseline once `ContactBox` is compiled and its
-non-Pawn responses are `Ignore`: **44 PASS / 0 FAIL / 0 PENDING**.
+non-Pawn responses are `Ignore`: **45 PASS / 0 FAIL / 0 PENDING**.
 
 ---
 
@@ -1315,7 +1342,7 @@ non-Pawn responses are `Ignore`: **44 PASS / 0 FAIL / 0 PENDING**.
   generate overlaps) and its `On Component Begin Overlap` is bound to the
   contact chain. `CollisionCylinder` is now `Pawn=Overlap` on all four classes,
   so the player falls through the enemy and cannot stand on it; `WorldStatic` /
-  `WorldDynamic` remain `Block`. The verifiers hold 44 PASS / 0 FAIL and
+  `WorldDynamic` remain `Block`. The verifiers hold 45 PASS / 0 FAIL and
   4 PASS / 0 FAIL. See `EnemyAI.md` §9.
 - **Player has no health.** Contact and projectiles call `Kill`; add health to
   `BP_Player` later if you want multi-hit damage. `ContactDamage` is `1.0`
