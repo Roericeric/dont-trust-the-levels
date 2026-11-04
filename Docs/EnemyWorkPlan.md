@@ -647,11 +647,16 @@ de-aggro branch.
 **Read:** `EnemyAI.md` §8.8; `Enemies.md` §6.8; `EnemyPlacement.md` §4.8.
 **Depends:** base health/contact only. **No base AI.**
 
-**Status: DONE** — test 14 PASS (§10, 27 Oct 2026). Live CDO on 4 Nov 2026:
-`TriggerRadius=1000`, `ChaseSpeed=1000`, `KnockbackForce=0`,
-`MaxAcceleration=8192`. The card value `TriggerRadius=1000` is the tuned one; the
-older `300`/`600` numbers in the log are history. Damage intentionally does not
-set `bTriggered`, so a shot from outside `1000` leaves the Bat idle.
+**Status: DONE (5 Nov 2026 — regression fixed).** Test 14 passed on 27 Oct.
+All three playtest bugs are verified fixed in PIE: the live
+`RefreshStateFlipbook` has the 13-node hit branch from
+`Scripts/_bp_bat_hit_aggro_only.txt` plus the
+`Set MaxFlySpeed = ChaseSpeed` write, and the EventGraph `HangIdle` custom event
+is gated on `bTriggered`. The staged 17-node
+`Scripts/_bp_bat_refresh_modified_v2.txt` remains available for a clean
+re-paste (it also contains the hit-path `K2_ClearTimer("HangIdle")`). Live CDO
+otherwise unchanged: `TriggerRadius=1000`, `ChaseSpeed=1000`,
+`KnockbackForce=0`, `MaxAcceleration=8192`.
 
 **Tasks**
 
@@ -662,8 +667,11 @@ set `bTriggered`, so a shot from outside `1000` leaves the Bat idle.
 - [ ] Class Defaults: `bCanMove=false`, `ChaseSpeed=1000`, `TriggerRadius=1000`,
       `MaxHealth=2`, `ContactDamage=1`, bat flipbooks.
 - [ ] `BeginPlay`: `InitEnemy`; `bDealContactDamage=false`; play
-      `CeilingInFlipbook`; start `HangIdle` (`0.6`).
-- [ ] `HangIdle` → loop `HangingFlipbook`.
+      `CeilingInFlipbook`; start `HangIdle` (`0.6`; the callback is gated on
+      `bTriggered`, or use `0.3` with the timer-clear alternative).
+- [ ] `HangIdle` → Branch `bTriggered` (preferred: false → loop
+      `HangingFlipbook`, true → return); or keep unconditional play with the
+      `0.3 s` timer plus `K2_ClearTimer("HangIdle")` on the hit chain.
 - [ ] Own `Event Tick`: trigger only when the player is valid and within the
       `1000` sphere; set `bTriggered=true`, contact on, play `CeilingOutFlipbook`,
       start `StartChase` (`0.5`).
@@ -1095,6 +1103,7 @@ sorted by date. Use `PASS`, `FAIL`, `BLOCKED` or `DONE` explicitly.
 | 4 Nov 2026 | A2 | M2 handover | DONE | export + live CDO: zero own variables on `BP_Rock1/2/3`, `BP_Snail`, `BP_WoodLog`, `BP_Rhino`, `BP_ToxicSlime`, `BP_FloatingSkull` | — | A2 inherits three DONE specials (tests 10/12/13/14); open = build `BP_FloatingSkull`, delete the Ghost's TEMP-M1 locals so it inherits `bAggro`/`AggroRadius`/`ChaseSpeed`, and get A1's ruling on the Turtle capsule `Pawn=Block` + removed `ToggleIdle` |
 | 5 Nov 2026 | A1 | `BP_EnemyBase` aggro-on-hit | DONE | `UpdateAggro` 54 nodes (46 + 8); fresh export + verifier: 45 PASS / 0 FAIL / 0 PENDING; `_check_enemy_ai_vars.py` 25 PASS / 0 FAIL; `BP_Snail` CDO `ChaseSpeed=80`, `AggroHalfWidth=0`, `AggroHalfHeight=0`, `bAggroOnHit=true` saved and re-read | — | design page `Scripts/_aggro_full_graph.html`; 1 variable (`bAggroOnHit`, `DeAggroTime` reused) + 8 nodes, no new function/local; `_verify_enemy_base.py` now asserts the 3 new links and the 3 old links; Snail health/movement/flipbooks remain open; PIE 1–9 still not logged |
 | 5 Nov 2026 | A1/A2 | Gun-aggro consistency | PARTIAL | live CDOs: `BP_Rock1/2/3` and `BP_WoodLog` now `bAggroOnHit=true`; `BP_Snail` already true. Saved and read back; dirty content empty | — | walkers use the base cross-platform hit term and `ChaseStep` walks to the ledge (closest safe X). `BP_Bat` is the one flying gun-aggroable enemy; its 13-node `RefreshStateFlipbook` hit branch is staged in `Scripts/_bp_bat_refresh_modified.txt` but the Function Entry → branch wire is still open, so a hit from outside `TriggerRadius=1000` still hangs. `Rhino`/`Ghost`/`SpikeTurtle`/`FloatingSkull` are not gun-aggroable; `ToxicSlime` cannot be aggroed at all | `BP_Rock1/2/3.uasset`, `BP_WoodLog.uasset`, `Enemies.md`, `EnemyAI.md` |
+| 5 Nov 2026 | A2 | `BP_Bat` three-bug follow-up | DONE | issues 1–3 verified in PIE; live `RefreshStateFlipbook` has the 13-node hit branch + `MaxFlySpeed=ChaseSpeed`; EventGraph `HangIdle` gated on `bTriggered` | — | live CDO `TriggerRadius=1000`, `ChaseSpeed=1000`, `MaxFlySpeed=400`, `MaxAcceleration=8192`; staged 17-node patch remains available for a clean re-paste | `Enemies.md` §6.8, `EnemyAI.md` §8.8 |
 
 **Defect report (B → A1, 25 Oct 2026) — `BP_EnemyBase` contact chain cannot fire.**
 Binary inspection of the committed `BP_EnemyBase.uasset` (458 KB, commit

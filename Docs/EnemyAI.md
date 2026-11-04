@@ -771,14 +771,27 @@ Branch: CurrentHealth <= 0
   and leaves the flying character in `MOVE_Flying`, so a hit cannot slide it
   along the ceiling or push it out of the trigger.
 - A non-lethal hit is meant to force aggro: the `RefreshStateFlipbook` branch
-  checks `bWasKnockedBack`, sets `bTriggered`/`bChasing`/`bDealContactDamage`,
-  clears the flag, then calls the parent. `bAggroOnHit` is walker-only and is
-  never read here. The 13-node branch is staged; the Function Entry → branch wire
-  is still open, so until it lands a hit from outside `1000` still leaves the Bat
-  hanging.
+  checks `bWasKnockedBack`, clears the flag, sets
+  `bTriggered`/`bChasing`/`bDealContactDamage`, **sets
+  `CharacterMovement.MaxFlySpeed = ChaseSpeed`**, then calls the parent. The
+  full staged patch additionally clears the pending `HangIdle` timer.
+  `bAggroOnHit` is walker-only and is
+  never read here. All three issues are verified fixed in PIE: the live asset
+  has the 13-node hit branch plus the `MaxFlySpeed` write, and the EventGraph
+  `HangIdle` custom event is gated on `bTriggered`. The full 17-node
+  replacement remains staged in `Scripts/_bp_bat_refresh_modified_v2.txt` for a
+  clean re-paste. Without the speed write, a hit before `StartChase` leaves the
+  Bat at the flying default `400` instead of `1000`.
 - `CharacterMovement.MaxAcceleration=8192` so that after a hit or the
   `StartChase` transition it reaches `MaxFlySpeed` immediately instead of
   drifting slowly.
+- The `BeginPlay` `HangIdle` timer is `0.6 s`, but `StartChase` is started after
+  `0.5 s`. The live fix gates the EventGraph `HangIdle` custom event on
+  `bTriggered` (optionally `bTriggered OR bIsDead`): once the Bat is triggered,
+  return instead of playing `HangingFlipbook`. That covers both the normal
+  trigger and the hit path without relying on timer order. Alternative: shorten
+  the `HangIdle` delay to `0.3 s` and call `K2_ClearTimer("HangIdle")` on the hit
+  chain.
 - After the `CeilingOut` animation, `bChasing=true` and it chases directly in
   the X/Z plane. Unlike Ghost, it **collides with walls and floors**: do not set
   `WorldStatic = Ignore`. If it hits a wall, it stops/slides; there is no

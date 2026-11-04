@@ -1141,18 +1141,51 @@ and floors**. No de-aggro once triggered.
 flying Bat along the ceiling. `bAggroOnHit` is a walker-only flag: the Bat's own
 Tick replaces the base walker loop, so the base flag is never read. The Bat needs
 the Bat-specific hit branch in `RefreshStateFlipbook`: on a valid hit
-(`bWasKnockedBack`), set `bTriggered`, `bChasing` and `bDealContactDamage`, clear
-the flag, then call the parent so the Flying flipbook is selected. The 13-node
-branch is staged in `Scripts/_bp_bat_refresh_modified.txt`, but its Function
-Entry → branch wire is still open; until that one wire is made, a shot from
-outside `TriggerRadius` leaves the Bat hanging. `ChaseSpeed` is inherited from
-`BP_EnemyBase`; do not add it again.
+(`bWasKnockedBack`), clear the flag, set `bTriggered`, `bChasing` and
+`bDealContactDamage`, then call the parent so the Flying flipbook is selected.
+`ChaseSpeed` is inherited from `BP_EnemyBase`; do not add it again.
+
+**Status (5 Nov 2026 — three playtest bugs):** all three are verified fixed
+in PIE. The live `RefreshStateFlipbook` contains the 13-node hit branch
+from `Scripts/_bp_bat_hit_aggro_only.txt` (Entry → `IfThenElse_1`; true sets the
+four flags, false joins the parent), plus a manual `Set MaxFlySpeed =
+ChaseSpeed` node in the true path before the parent call. The EventGraph
+`HangIdle` custom event is gated on `bTriggered`. The full 17-node replacement
+remains staged in `Scripts/_bp_bat_refresh_modified_v2.txt` for a clean
+re-paste; it also contains the hit-path `K2_ClearTimer("HangIdle")`. The three
+bugs were distinct:
+
+1. **No aggro after a hit** — without that Entry → branch wire the whole hit
+   branch is dead, so a shot from outside `TriggerRadius=1000` leaves the Bat
+   hanging.
+2. **Slow chase after a hit** — setting `bChasing=true` alone does not change
+   `CharacterMovement.MaxFlySpeed`; it stays at the flying default `400` until
+   `StartChase` runs. A hit before the normal trigger path therefore chases at
+   `400`, not `1000`. The hit chain now writes
+   `MaxFlySpeed = ChaseSpeed` at its end (plus the
+   `CharacterMovement`/`ChaseSpeed` getters); `MaxAcceleration=8192` makes
+   the change immediate.
+3. **Idle animation while chasing** — the `BeginPlay` `HangIdle` timer is `0.6 s`
+   while the normal `StartChase` timer is `0.5 s`. If the player enters the
+   sphere very soon after BeginPlay (or a hit fires the hit branch), the
+   `HangIdle` callback can land **after** `StartChase` and overwrite
+   `FLB_Bat_Flying` with `FLB_Bat_Hanging`. **Applied fix:** the live
+   EventGraph `HangIdle` custom event is gated on `bTriggered` (optionally
+   `bTriggered OR bIsDead`) and returns without playing the hanging flipbook
+   once the Bat has been triggered. This fixes both the normal and hit paths
+   without relying on timer ordering. Alternative: call
+   `K2_ClearTimer("HangIdle")` on the hit chain and shorten the `BeginPlay`
+   timer to `0.3 s`. Do not remove the timer: it is what starts the hanging
+   idle loop.
 
 **BeginPlay:** `InitEnemy`; `Set bDealContactDamage=false`;
 `PlayStateFlipbook(CeilingInFlipbook,false)`;
 `Set Timer by Function Name("HangIdle", 0.6, false)`.
 
-`HangIdle` → `PlayStateFlipbook(HangingFlipbook,true)`.
+`HangIdle` → Branch `bTriggered` (live; optionally `bTriggered OR
+bIsDead`); false → `PlayStateFlipbook(HangingFlipbook,true)`; true → return.
+The older alternative keeps the unconditional play and relies on the `0.3 s`
+timer plus `K2_ClearTimer("HangIdle")` on the hit chain.
 
 **`Event Tick` — trigger**
 
