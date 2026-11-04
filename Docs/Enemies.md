@@ -548,6 +548,9 @@ rather than chases (`ChaseStep` override in §8.9), so a hit from outside the
 rectangle turns it on the player without moving it. The flag needs
 `ChaseSpeed > 0`, because the base `UpdateAggro` returns to `PatrolStep` before
 the box test when `ChaseSpeed <= 0`.
+**Status (5 Nov 2026):** `bAggroOnHit=true` is live on `BP_WoodLog` and verified
+by readback; it buys aim, not movement, because the child `ChaseStep` stands
+still.
 
 `BP_PeaPlant`: no patrol; `bCanMove=false`; `RefreshStateFlipbook` always
 `FLB_Plant_Idle`. It is unused in the current build.
@@ -590,6 +593,18 @@ Stationary/flyers (`SpikeTurtle`, `Ghost`, `Bat`, `FloatingSkull`) set
 `ChaseSpeed=0` for Turtle/Ghost/Skull; Bat inherits `ChaseSpeed=1000` because
 that value is also its `MaxFlySpeed`. `ChaseSpeed=0` also means "no detection"
 for Snail and Slime. See `EnemyAI.md` §4.3.
+
+**Gun-aggro set (5 Nov 2026):** only enemies the player's gun can damage are
+eligible to be woken by a hit: `BP_Rock1/2/3`, `BP_Snail`, `BP_WoodLog` and
+`BP_Bat`. The three walkers use `bAggroOnHit=true`; the base hit term deliberately
+skips `IsPlayerOnHomePlatform()` and the Z gate, so a shot from another platform
+still makes them walk toward the player's X and stop at the ledge (the closest
+safe spot on their platform). `BP_Bat` is the flying exception and needs its own
+hit branch because it replaces the base walker Tick; `bAggroOnHit` alone is a
+no-op there (`EnemyAI.md` §8.8). `BP_Rhino` (bullets no-op), `BP_Ghost`
+(intangible/invulnerable until its sphere trigger), `BP_SpikeTurtle`
+(invulnerable), and `BP_FloatingSkull` (no chase) cannot be gun-aggroed;
+`BP_ToxicSlime` cannot be aggroed at all (`ChaseSpeed=0`).
 
 **Do not duplicate inherited variables.** `bAggro`, `AggroRadius`, `ChaseSpeed`,
 `MoveSpeed`, `KnockbackForce`, `Facing`, the health/contact variables and
@@ -700,6 +715,8 @@ patrol when the player leaves or becomes unreachable. Each tier keeps its own
 chases for `DeAggroTime` even when the player is outside the rectangle, so a
 tier-1 hit does not immediately lose the player. It costs one checkbox per
 asset and adds no nodes — the base graph reads the flag.
+**Status (5 Nov 2026):** live on all three CDOs and verified by readback from the
+saved class default objects.
 
 **`Die` override**
 
@@ -1121,9 +1138,14 @@ and floors**. No de-aggro once triggered.
 **Defaults:** `bCanMove=false`, `ChaseSpeed=1000`, `TriggerRadius=1000`,
 `KnockbackForce=0`, `MaxHealth=2`, `ContactDamage=1`, `HitFlipbook=FLB_Bat_Hit`,
 `DeathFlipbook=FLB_Bat_Hit`. The zero knockback keeps a hit from launching the
-flying Bat along the ceiling. Aggro is still driven by the Tick distance check:
-a hit by itself does **not** set `bTriggered`; the player must be inside
-`TriggerRadius` when the Bat ticks. `ChaseSpeed` is inherited from
+flying Bat along the ceiling. `bAggroOnHit` is a walker-only flag: the Bat's own
+Tick replaces the base walker loop, so the base flag is never read. The Bat needs
+the Bat-specific hit branch in `RefreshStateFlipbook`: on a valid hit
+(`bWasKnockedBack`), set `bTriggered`, `bChasing` and `bDealContactDamage`, clear
+the flag, then call the parent so the Flying flipbook is selected. The 13-node
+branch is staged in `Scripts/_bp_bat_refresh_modified.txt`, but its Function
+Entry → branch wire is still open; until that one wire is made, a shot from
+outside `TriggerRadius` leaves the Bat hanging. `ChaseSpeed` is inherited from
 `BP_EnemyBase`; do not add it again.
 
 **BeginPlay:** `InitEnemy`; `Set bDealContactDamage=false`;

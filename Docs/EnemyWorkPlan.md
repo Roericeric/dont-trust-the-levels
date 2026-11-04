@@ -548,29 +548,11 @@ contract docs. Never save `L_Level_01`; A2 stages/removes the M1 test actor.
       **DONE 4 Nov 2026.**
 - [x] Wire `BeginPlay`, `Landed`, `Event Tick`, and the `AnyDamage`
       `bWasKnockedBack` flag. **`Event Tick` is a wired event node.**
-- [ ] **NEXT — aggro on hit** (`EnemyAI.md` §6.2/§6.3). Add `bAggroOnHit`
-      (Boolean, `false`) — and **only** that variable: reuse the existing
-      `DeAggroTime` (`2.0`) as the post-hit window instead of adding a second
-      duration, then extend the `Reachable` formula in `UpdateAggro` to
-      `(InBox AND IsPlayerOnHomePlatform AND |ΔZ| <= MaxChaseStepZ) OR
-      (bAggroOnHit AND Now - LastDamageTime <= DeAggroTime)`.
-      `LastDamageTime` already exists and is stamped by `Event AnyDamage`
-      (`Enemies.md` §4.2) after the i-frame gate, so the hit path needs no new
-      timestamp and an i-frame-swallowed hit cannot wake the enemy. Note the
-      resulting window: while the
-      hit term is true the enemy chases for `DeAggroTime`, then the existing
-      grace holds it standing for another `DeAggroTime` — about `4 s` in total at
-      the default `2.0`, and both halves move together when the knob is retuned.
-      Set `bAggroOnHit=true` only on `BP_Rock1/2/3`, `BP_WoodLog` (A2 flips) and
-      `BP_Snail` (A1 flip, plus `ChaseSpeed=80`, `AggroHalfWidth=0`,
-      `AggroHalfHeight=0`). Ghost and Rhino stay detection-only.
-      Snail needs the CDO edits in the same commit; do not hand the Snail flip
-      to A2.
-      **Pin-level view:** `Scripts\_aggro_on_hit_graph.html` (tabs: delta →
-      today's `UpdateAggro` → order of work). No new function and no new local
-      — one variable plus 8 nodes. Regenerate with
-      `py -3 Scripts\_make_aggro_on_hit_graph.py`; the node dump behind it is
-      `py -3 Scripts\_dump_enemy_aggro.py` (reads the 4 Nov export offline).
+- [x] **DONE 5 Nov 2026 — aggro on hit** (`EnemyAI.md` §6.2/§6.3). `bAggroOnHit`
+      (Boolean, `false`) exists and `UpdateAggro` is 54 nodes; the hit term reuses
+      `DeAggroTime` and skips the same-platform/Z gate. Live CDO flips landed on
+      `BP_Rock1/2/3`, `BP_WoodLog` and `BP_Snail`. `BP_Bat` needs its own
+      `RefreshStateFlipbook` hit branch because it never runs the walker loop.
 - [ ] **Gate:** verify the Top gate
       (`bIsDead OR bStranded OR NOT bCanMove` → return; `bWasKnockedBack` →
       return; `ChaseSpeed <= 0` → `PatrolStep` → return) in PIE with tests 1–9.
@@ -808,6 +790,8 @@ unaffected; no graph in the slime is needed for the lifetime.
 
 **Read:** `EnemyAI.md` §8.9; `Enemies.md` §5.3; `EnemyPlacement.md` §4.9.
 **Depends:** C3 + M1. **Allowed early:** defaults and `TryFire` graph.
+**Status (5 Nov 2026):** `bAggroOnHit=true` is live and verified; the rest of C4
+(health/speeds/flipbooks/`TryFire` verification) is still open.
 
 **Tasks**
 
@@ -890,7 +874,8 @@ platform edge; shell ignores bullets; contact `1`; destroys itself after `8 s`.
 **Status: NOT STARTED (4 Nov 2026).** `BP_RockBase` and `BP_Rock1/2/3` still hold
 every base default (`ChaseSpeed=150`, `MoveSpeed=100`, `MaxHealth=3`,
 `ContactDamage=1`) and declare zero own variables. No split graph exists, so
-`BP_RockBase` in the export is an empty template.
+`BP_RockBase` in the export is an empty template. **Aggro-on-hit is done (5 Nov):**
+`bAggroOnHit=true` is live on all three CDOs; the rest of the card is still open.
 
 **Parallel prep:** `BP_RockBase`/Rock unique variables and Class Defaults may be
 prepared now; split/chase graphs wait for A1's `M1 GREEN`.
@@ -1109,6 +1094,7 @@ sorted by date. Use `PASS`, `FAIL`, `BLOCKED` or `DONE` explicitly.
 | 4 Nov 2026 | A1 | Owner split re-issued | DONE | `_check_enemy_ai_vars.py` **24 PASS / 0 FAIL**; 21 function graphs; 13/13 AI functions | — | `Docs/EnemyWorkPlan.md`; **Owner B retired** — slots are A1/A2/C, B's assets (`BP_SpikeTurtle`, `BP_Ghost`, `BP_Bat`, `BP_FloatingSkull`), `L_Level_Testing` and milestone M2 moved to A2; §0/§3/§4/§4.1/§4.2/§5/§6/§7/§8 updated; A1's next task is the aggro-on-hit base change (`bAggroOnHit`; `HitAggroDuration` was dropped on 4 Nov in favour of reusing `DeAggroTime`) |
 | 4 Nov 2026 | A2 | M2 handover | DONE | export + live CDO: zero own variables on `BP_Rock1/2/3`, `BP_Snail`, `BP_WoodLog`, `BP_Rhino`, `BP_ToxicSlime`, `BP_FloatingSkull` | — | A2 inherits three DONE specials (tests 10/12/13/14); open = build `BP_FloatingSkull`, delete the Ghost's TEMP-M1 locals so it inherits `bAggro`/`AggroRadius`/`ChaseSpeed`, and get A1's ruling on the Turtle capsule `Pawn=Block` + removed `ToggleIdle` |
 | 5 Nov 2026 | A1 | `BP_EnemyBase` aggro-on-hit | DONE | `UpdateAggro` 54 nodes (46 + 8); fresh export + verifier: 45 PASS / 0 FAIL / 0 PENDING; `_check_enemy_ai_vars.py` 25 PASS / 0 FAIL; `BP_Snail` CDO `ChaseSpeed=80`, `AggroHalfWidth=0`, `AggroHalfHeight=0`, `bAggroOnHit=true` saved and re-read | — | design page `Scripts/_aggro_full_graph.html`; 1 variable (`bAggroOnHit`, `DeAggroTime` reused) + 8 nodes, no new function/local; `_verify_enemy_base.py` now asserts the 3 new links and the 3 old links; Snail health/movement/flipbooks remain open; PIE 1–9 still not logged |
+| 5 Nov 2026 | A1/A2 | Gun-aggro consistency | PARTIAL | live CDOs: `BP_Rock1/2/3` and `BP_WoodLog` now `bAggroOnHit=true`; `BP_Snail` already true. Saved and read back; dirty content empty | — | walkers use the base cross-platform hit term and `ChaseStep` walks to the ledge (closest safe X). `BP_Bat` is the one flying gun-aggroable enemy; its 13-node `RefreshStateFlipbook` hit branch is staged in `Scripts/_bp_bat_refresh_modified.txt` but the Function Entry → branch wire is still open, so a hit from outside `TriggerRadius=1000` still hangs. `Rhino`/`Ghost`/`SpikeTurtle`/`FloatingSkull` are not gun-aggroable; `ToxicSlime` cannot be aggroed at all | `BP_Rock1/2/3.uasset`, `BP_WoodLog.uasset`, `Enemies.md`, `EnemyAI.md` |
 
 **Defect report (B → A1, 25 Oct 2026) — `BP_EnemyBase` contact chain cannot fire.**
 Binary inspection of the committed `BP_EnemyBase.uasset` (458 KB, commit

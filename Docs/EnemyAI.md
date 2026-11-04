@@ -396,6 +396,13 @@ A walker chases when **either** term is true.
 - `bAggroOnHit` is true (default `false`);
 - `Get Game Time in Seconds - LastDamageTime <= DeAggroTime`.
 
+**Gun-aggro set (5 Nov 2026):** `Rock1/2/3`, `Snail`, `WoodLog` and `Bat`. The
+walkers use `bAggroOnHit=true`; the base hit term is deliberately cross-platform
+and lets `ChaseStep` walk to the ledge (closest safe X) without leaving the
+platform. `Bat` must implement the hit branch itself because it replaces the base
+walker Tick; `bAggroOnHit` is never read there. Rhino, Ghost, Spike Turtle and
+the Skull cannot be gun-aggroed; Toxic Slime cannot be aggroed at all.
+
 ```text
 Reachable = (InBox AND OnHome AND Abs(Player.Z - Self.Z) <= MaxChaseStepZ)
             OR (bAggroOnHit AND Now - LastDamageTime <= DeAggroTime)
@@ -476,7 +483,7 @@ branch.
 | Rhino | rectangle | `1200` | `500` | `2.0 s` | yes (charge) |
 | Wood Log | rectangle | `1400` | `500` | `2.0 s` | no — stops to shoot |
 | Ghost | sphere | `550` | — | **never** | yes, through walls |
-| Bat | sphere | `1000` | — | **never** | yes, collides |
+| Bat | sphere `1000` + hit branch (staged) | — | — | **never** | yes, collides |
 | Snail | hit only | — | — | `2.0 s` | yes, after a hit (`80`) |
 | Toxic Slime | none | — | — | — | no |
 | Spike Turtle | none | — | — | — | no |
@@ -663,6 +670,7 @@ authoring contract.
 - Add the rectangle aggro/de-aggro loop from §6.
 - Set `bAggroOnHit=true` on all three tiers (A2's CDOs): the rectangle is
   `700` wide, so a hit from outside it would otherwise be forgotten instantly.
+  **DONE 5 Nov 2026:** live and verified on all three CDOs.
 - `MoveSpeed`/`ChaseSpeed` per tier; keep the existing `100 / 140 / 180`
   identities and use `120 / 160 / 200` for chase as a starting point. Tune
   separately after PIE.
@@ -762,10 +770,12 @@ Branch: CurrentHealth <= 0
 - `KnockbackForce=0` for the Bat. `LaunchCharacter` then receives a zero vector
   and leaves the flying character in `MOVE_Flying`, so a hit cannot slide it
   along the ceiling or push it out of the trigger.
-- A non-lethal hit does **not** force aggro by itself: the base damage path
-  clears aggro while knocked back. The Bat's own Tick must see the player
-  inside `TriggerRadius`; zero knockback keeps it there long enough to trigger.
-  A hit from outside `1000` still leaves it hanging.
+- A non-lethal hit is meant to force aggro: the `RefreshStateFlipbook` branch
+  checks `bWasKnockedBack`, sets `bTriggered`/`bChasing`/`bDealContactDamage`,
+  clears the flag, then calls the parent. `bAggroOnHit` is walker-only and is
+  never read here. The 13-node branch is staged; the Function Entry → branch wire
+  is still open, so until it lands a hit from outside `1000` still leaves the Bat
+  hanging.
 - `CharacterMovement.MaxAcceleration=8192` so that after a hit or the
   `StartChase` transition it reaches `MaxFlySpeed` immediately instead of
   drifting slowly.
@@ -788,6 +798,7 @@ Branch: CurrentHealth <= 0
 - Set `bAggroOnHit=true` (A2's CDO) so a hit from outside the `1400×500`
   rectangle still turns it. It needs `ChaseSpeed > 0` (the gate above), and the
   `ChaseStep` override keeps it planted, so the flag buys aim, not movement.
+  **DONE 5 Nov 2026:** live and verified on `BP_WoodLog`.
 - It only fires horizontally: projectile direction `(Facing,0,0)`, muzzle Z
   fixed by `MuzzleOffset.Z`. Do not aim at the player's Z.
 - If the player leaves the rectangle or becomes unreachable for `DeAggroTime`,
