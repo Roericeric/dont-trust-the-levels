@@ -76,6 +76,26 @@ The `Enemy` tag on every enemy CDO is defense in depth for future trap logic,
 but the current gate is the equality above - tags are identifiers, not collision
 filters (`Docs/Enemies.md` §1).
 
+### 2.2 `BP_Trap_Saw` - two volumes, one death path
+
+`BP_Trap_Saw` (build guide: `Docs/SawTrap.md`) is an ordinary `BP_TrapBase`
+child. It owns **two** overlap volumes, and they have different jobs:
+
+| Volume | Owner | Job | Actor gate |
+|---|---|---|---|
+| `Trigger` | `BP_TrapBase` (inherited) | Lethal hitbox; calls `Kill` on the player | `Equal(OtherActor, Get Player Character(0))` in the parent |
+| `RevealBox` | `BP_Trap_Saw` (added) | Proximity sensor; only starts the reveal/morph | `Equal(OtherActor, Get Player Character(0))` in the child |
+
+The child must **not** add a second `Kill` or `Apply Damage`. `RevealBox` is
+not a damage volume; it only calls `ActivateSaw`. This keeps the saw inside the
+same player-only trap contract as spikes and the fake floor: bullets and enemies
+pass through `RevealBox` without starting the trap, and the inherited `Trigger`
+still refuses to kill an enemy.
+
+The saw's hidden state is enforced by collision, not by a tag:
+`bStartHidden=true` sets `Trigger` to `NoCollision` until `ActivateSaw` runs.
+A hidden saw must never be lethal before it is visible.
+
 ---
 
 ## 3. Why the spikes tripped on bullets
