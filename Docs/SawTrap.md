@@ -4,8 +4,8 @@
 functions (`ActivateSaw`, `FinishSawMorph`, `ChaseStep`) and the EventGraph
 (BeginPlay, Tick, RevealBox overlap) are built and compile. **Two runtime
 defects are still open:** the transform snaps instead of interpolating, and the
-blade is still before the transform. See section 11 for the test and the known
-causes. The event lanes are collapsed into named composite nodes
+flipbook does not spin before the transform. See section 11 for the test and
+the known causes. The event lanes are collapsed into named composite nodes
 (`SawBeginPlayer_Setup`, `SawBeginPlay_Visibility`,
 `SawBeginPlayer_RevealArm`, `SawTick_Morph`, `SawTick_Chase`);
 `_verify_saw.py` follows collapsed graphs, so the verifier sees the wiring
@@ -625,33 +625,43 @@ py -3 Scripts\_make_saw_shell.py       :: idempotent asset creation, never overw
 ## 11. Current problem and next test (15 Nov 2026)
 
 **Problem:** the saw **snaps** to the target instead of transforming over
-`TransitionDuration`, and the flipbook is **still** before the transform even
-though it should be spinning at all times.
+`TransitionDuration`, and the flipbook does **not** spin before the transform.
+The blade is supposed to be spinning at all times: while waiting for the
+player, during the transform, and after it.
 
 **Test (PIE, one placed saw):**
 
 1. Instance: `bActivateOnPlayerNear = true`, `bMovable = true`,
    `TargetOffset = (-300,0,0)`, `TransitionDuration = 1.0`,
    `StartScale = 0.5`, `TargetScale = 1.5`.
-2. Walk into `RevealBox`.
-3. Expected:
-   - the blade spins before the trigger and keeps spinning during and after;
-   - the saw moves 300 uu left and grows 0.5 -> 1.5 over 1.0 s;
-   - at 0.5 s it is halfway (150 uu left, scale 1.0) - it must not jump to the
-     target in one frame;
-   - the moving `Trigger` kills the player if it passes through them.
+2. **Before** touching `RevealBox`: the blade must already be spinning.
+3. Walk into `RevealBox`: only then does the saw start moving. It must not move
+   before the player enters the box.
+4. **Progress is proportional to the duration.** The transform must be
+   `elapsed / TransitionDuration` complete:
+   - duration `1.0` s -> at `0.5` s it is 50% (halfway, 150 uu left, scale
+     1.0);
+   - duration `0.5` s -> at `0.25` s it is 50%;
+   - never jump from 0 to 1 on the first frame.
+5. The `Trigger` is the damage box and travels with `SawRoot`. If the player
+   stands in the path of that moving box while the saw transforms, the overlap
+   must kill them.
+6. After reaching the target, the blade keeps spinning.
 
 **Observed:** the saw reaches the target immediately (snap), and the flipbook
-sits on frame 0 until `FinishSawMorph` calls `Play`.
+stays on frame 0 until `FinishSawMorph` calls `Play` - so there is no spin
+before the transform.
 
 **Check first:**
 
+- `BeginPlay` must `Play` the flipbook for a visible saw (with `Set Looping`
+  true). `ActivateSaw` must not `Stop` it before the move; remove the
+  `Stop`/`Set Playback Position` pair or put `Play` after them.
 - `TransitionDuration` in `ActivateSaw` and `SawTick_Morph` reads the
   **instance** value (1.0), not the class default (0.0); a 0 makes `> 0` false
   and takes the `FinishSawMorph` snap path.
-- `Sprite -> Play` is on the `ActivateSaw` chain after `Stop` and
-  `Set Playback Position`, before the transition branch.
-- `Tick` actually runs; `MorphElapsed` must climb 0 -> 1 over the duration.
+- `Tick` actually runs; `MorphElapsed` must climb from 0 to 1 over the duration,
+  and `MorphAlpha` must be `MorphElapsed / TransitionDuration` clamped.
 - `bTransitioning` is true on the timed branch.
 - `Sprite` scale is `0.4211` and its location `(-50,0,50)` so the blade and the
   100-uu `Trigger` match; scale `SawRoot` or the actor instance for a bigger
