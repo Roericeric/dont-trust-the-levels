@@ -673,6 +673,14 @@ before the transform.
   to one point per trigger.
 - **Transform loop:** ping-pong between two points for an infinite left-right
   sweep (array index toggling or a Timeline).
+- **Separate the reveal trigger from the saw:** do not attach `RevealBox` to the
+  saw actor. Use a small standalone trigger actor (or a generic pressure plate,
+  tripwire, or scripted volume) that keeps the player-only overlap gate and
+  holds a reference to the saw instance, then calls `ActivateSaw` on it. This
+  removes the huge proximity volume around the blade and lets one trigger drive
+  several saws or fire from a specific corridor/door. The saw then only needs
+  its BeginPlay setup and a public `ActivateSaw`; `bActivateOnPlayerNear`
+  becomes optional/legacy for externally triggered saws.
 
 
 
