@@ -1,9 +1,11 @@
 # BP_Trap_Saw - configurable saw-off trap - build guide
 
-**Status (14 Nov 2026):** `BP_Trap_Saw` is **complete**. The shell, components,
-17 variables, all three functions (`ActivateSaw`, `FinishSawMorph`, `ChaseStep`)
-and the EventGraph (BeginPlay, Tick, RevealBox overlap) are built and compile.
-The event lanes are collapsed into named composite nodes
+**Status (15 Nov 2026):** the shell, components, 17 variables, all three
+functions (`ActivateSaw`, `FinishSawMorph`, `ChaseStep`) and the EventGraph
+(BeginPlay, Tick, RevealBox overlap) are built and compile. **Two runtime
+defects are still open:** the transform snaps instead of interpolating, and the
+blade is still before the transform. See section 11 for the test and the known
+causes. The event lanes are collapsed into named composite nodes
 (`SawBeginPlayer_Setup`, `SawBeginPlay_Visibility`,
 `SawBeginPlayer_RevealArm`, `SawTick_Morph`, `SawTick_Chase`);
 `_verify_saw.py` follows collapsed graphs, so the verifier sees the wiring
@@ -617,6 +619,50 @@ py -3 Scripts\_make_saw_shell.py       :: idempotent asset creation, never overw
   set `BP_TrapBase` as parent, but this UE 4.27 build exposes no SCS component,
   variable, or K2-node creation API. The guide is the implementation; the
   verifier is the safety net.
+
+---
+
+## 11. Current problem and next test (15 Nov 2026)
+
+**Problem:** the saw **snaps** to the target instead of transforming over
+`TransitionDuration`, and the flipbook is **still** before the transform even
+though it should be spinning at all times.
+
+**Test (PIE, one placed saw):**
+
+1. Instance: `bActivateOnPlayerNear = true`, `bMovable = true`,
+   `TargetOffset = (-300,0,0)`, `TransitionDuration = 1.0`,
+   `StartScale = 0.5`, `TargetScale = 1.5`.
+2. Walk into `RevealBox`.
+3. Expected:
+   - the blade spins before the trigger and keeps spinning during and after;
+   - the saw moves 300 uu left and grows 0.5 -> 1.5 over 1.0 s;
+   - at 0.5 s it is halfway (150 uu left, scale 1.0) - it must not jump to the
+     target in one frame;
+   - the moving `Trigger` kills the player if it passes through them.
+
+**Observed:** the saw reaches the target immediately (snap), and the flipbook
+sits on frame 0 until `FinishSawMorph` calls `Play`.
+
+**Check first:**
+
+- `TransitionDuration` in `ActivateSaw` and `SawTick_Morph` reads the
+  **instance** value (1.0), not the class default (0.0); a 0 makes `> 0` false
+  and takes the `FinishSawMorph` snap path.
+- `Sprite -> Play` is on the `ActivateSaw` chain after `Stop` and
+  `Set Playback Position`, before the transition branch.
+- `Tick` actually runs; `MorphElapsed` must climb 0 -> 1 over the duration.
+- `bTransitioning` is true on the timed branch.
+- `Sprite` scale is `0.4211` and its location `(-50,0,50)` so the blade and the
+  100-uu `Trigger` match; scale `SawRoot` or the actor instance for a bigger
+  saw, never the Sprite alone.
+
+**After the test passes (optional):**
+
+- **Multiple targets:** replace `TargetOffset` with an array and an index; move
+  to one point per trigger.
+- **Transform loop:** ping-pong between two points for an infinite left-right
+  sweep (array index toggling or a Timeline).
 
 
 
